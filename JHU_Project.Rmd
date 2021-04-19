@@ -1,0 +1,103 @@
+---
+title: "Final_Project"
+author: "Zhuojue Wang"
+date: "2021/4/18"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#load Packages
+library(caret)
+library(tidyverse)
+library(ggplot2)
+```
+
+
+# 1. Introduction
+
+In the recent times, we can collect many fitness data using device such as Jawbone Up, Nike FuelBand, and Fitbit. A group of enthusiasts collect barbell lifts data with 5 way to lifts the ball(sitting-down, standing-up, standing, walking, and sitting). We want to use the data provided from the team to build a model that able to predict the way of barbell lifts base on the data. I first load the testing and training data set and start to ddo some explotoary data analysis. By looking at the data, the participant's name and the time which those data is collected is not relevant for our prediction algorithm. There are also many variable with some data but mostly NA. Which limit the use of preprocessing function to make estimate for those missing value. I decided remove both the irrelevant information and missing predictor from the data. 
+```{r}
+#load Data Remove the non-numeric variable with we will not use the person and time of the exercise as predictor
+pml_testing <- read_csv("C:/Users/PC/Downloads/pml-testing.csv")[-c(1:7)]
+pml_training <- read_csv("C:/Users/PC/Downloads/pml-training.csv")[-c(1:7)]
+
+
+
+#remove any colume with NA in there
+pml_training <- pml_training[,colSums(is.na(pml_training)) == 0]
+pml_testing <- pml_testing[,colSums(is.na(pml_testing)) == 0]
+
+#pml_training
+summary(pml_training)
+
+
+```
+2. Data Partitioning
+For the reproducibility we set the seed for the random splitting process. I split the training data with a 60/40 split. I want to reduce the size of the training set for a faster computational process. We got 11776 sample in the training set and 7846 sample in the test set. I plot the frequency plot of classe in training and test set. I find the proportion is similar across group, that will make should we our test set has the similar data distribution with the training set
+```{r}
+#for reproducibility
+set.seed(777)
+#split the data 60% 40%
+trainset <- createDataPartition(y=pml_training$classe, p=0.60, list=FALSE)
+
+Train <- pml_training[trainset, ] 
+Test <- pml_training[-trainset, ]
+dim(Train)
+dim(Test)
+
+ggplot(pml_training,aes(classe)) + geom_bar(fill = "Lightblue")
+ggplot(Train,aes(classe)) + geom_bar(fill = "Lightblue")
+ggplot(Test,aes(classe)) + geom_bar(fill = "Lightblue")
+```
+
+# Model Training
+
+In order to make result reproducible I also set seed for the model training part. I choose 4 different algorithm, they are boosted tree, random forest, linear discriminant analysis and a stack model that combine the prediction of all three model and coming up with a stacked model. I also compute the accuracy bases on the testing set. The best model is random forest with accuracy of 0.9915881. The stack model has the same accuracy as the random forest. Since random forest is easier than the stack model, I choose random forest as the final model.
+```{r,cache=TRUE}
+set.seed(777)
+
+mod_rf<-train(classe ~., data=Train, method="rf")  
+mod_gbm<-train(classe ~., data=Train, method="gbm")  
+mod_lda<-train(classe ~., data=Train, method="lda")
+
+
+
+pred_rf<-predict(mod_rf,Test)  
+pred_gbm<-predict(mod_gbm,Test)  
+pred_lda<-predict(mod_lda,Test)
+
+```
+
+```{r,cache=TRUE}
+#try stacked model
+predDF<-data.frame(pred_rf, pred_gbm, pred_lda, classe=Test$classe)
+combModFit<-train(classe ~., method="rf", data=predDF)  
+combPred<-predict(combModFit, predDF)
+
+```
+
+```{r}
+confusionMatrix(factor(pred_rf),factor(Test$classe))$overall['Accuracy']  
+confusionMatrix(factor(pred_gbm),factor(Test$classe))$overall['Accuracy']
+confusionMatrix(factor(pred_lda),factor(Test$classe))$overall['Accuracy']
+confusionMatrix(factor(combPred),factor(Test$classe))$overall['Accuracy']
+```
+# Test on test case
+We use the random forest model as the final model to make 20 prediction on the test cases
+```{r}
+mod_rf
+
+final_pred_rf<-predict(mod_rf,pml_testing)  
+final_pred_rf
+```
+
+
+
+
+
+
+
+
